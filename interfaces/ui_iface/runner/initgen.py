@@ -128,26 +128,15 @@ def hydration_from_hydrology(E: NDArray[np.float32], A: NDArray[np.float32], lak
     return h2o
 def temperature_meridional(h: int, w: int, params: dict, seed: int) -> NDArray[np.float32]:
     g = _rng(seed)
-    direction = params.get("direction", "north_hot")
-    amp = float(params.get("amplitude", 0.6))
+    amp = float(params.get("amplitude", 0.7))
     noise_amp = float(params.get("noise_amp", 0.05))
-    y = np.linspace(0.0, 1.0, h, dtype=np.float32)
-    if direction == "north_hot":
-        base = 1.0 - y
-    else:
-        base = y
-    base = 0.5 + amp * (base - 0.5)
+    y_coords = np.linspace(0.0, 1.0, h, dtype=np.float32)
+    distance_from_equator = np.abs(y_coords - 0.5) * 2.0
+    base_temp = 1.0 - distance_from_equator
+    base_temp = 0.5 + amp * (base_temp - 0.5)
     noise = gaussian_filter(g.standard_normal((h, w)).astype(np.float32), 4.0, mode="wrap") * noise_amp
-    grad = np.tile(base[:, None], (1, w))
+    grad = np.tile(base_temp[:, None], (1, w))
     t = grad + noise
-    t = (t - t.min()) / (t.max() - t.min() + 1e-8)
-    rows = t.mean(axis=1)
-    if direction == "north_hot":
-        if not np.all(np.diff(rows) <= 0.05):
-            t = np.tile(base[:, None], (1, w))
-    else:
-        if not np.all(np.diff(rows) >= -0.05):
-            t = np.tile(base[:, None], (1, w))
     t = np.clip(t, 0.0, 1.0).astype(np.float32)
     return t
 def vegetation_init(H2O: NDArray[np.float32], T: NDArray[np.float32], params: dict, seed: int) -> NDArray[np.float32]:

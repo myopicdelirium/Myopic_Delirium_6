@@ -58,8 +58,8 @@ fields:
   derived: true
   name: movement_cost
 heat_profile:
-  amplitude: 0.6
-  direction: north_hot
+  direction: equator_hot
+  amplitude: 0.7
   noise_amp: 0.05
 outputs:
   deltas_cadence: 1
