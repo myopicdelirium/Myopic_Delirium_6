@@ -1,0 +1,17 @@
+from typing import Any, Dict
+def get_schema() -> Dict[str, Any]:
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["world", "randomness", "fields", "dynamics", "outputs", "heat_profile", "water_profile", "vegetation_profile"],
+        "properties": {
+            "world": {"type": "object", "required": ["type", "width", "height", "wrap", "ticks_per_day"], "properties": {"type": {"const": "grid"}, "width": {"type": "integer", "minimum": 4}, "height": {"type": "integer", "minimum": 4}, "wrap": {"type": "object", "required": ["x", "y"], "properties": {"x": {"type": "boolean"}, "y": {"type": "boolean"}}}, "ticks_per_day": {"type": "integer", "minimum": 1}}},
+            "randomness": {"type": "object", "required": ["seed", "partitions"], "properties": {"seed": {"type": "integer"}, "partitions": {"type": "object", "required": ["terrain_elevation", "precipitation", "river_routing", "vegetation_seed", "kernel_noise"], "properties": {"terrain_elevation": {"type": "integer"}, "precipitation": {"type": "integer"}, "river_routing": {"type": "integer"}, "vegetation_seed": {"type": "integer"}, "kernel_noise": {"type": "integer"}}}}},
+            "fields": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["name", "bounds", "coeffs", "derived"], "properties": {"name": {"type": "string"}, "bounds": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "coeffs": {"type": "object", "properties": {"diffusion": {"type": "number"}, "advection": {"type": "object", "properties": {"vx": {"type": "number"}, "vy": {"type": "number"}}}, "decay": {"type": "number"}, "replenish": {"type": "number"}}}, "derived": {"type": "boolean"}}}},
+            "dynamics": {"type": "object", "properties": {"boundary": {"type": "string"}, "passes": {"type": "object", "properties": {"diffusion": {"type": "boolean"}, "advection": {"type": "boolean"}, "coupling": {"type": "boolean"}, "decay": {"type": "boolean"}, "replenishment": {"type": "boolean"}, "derived": {"type": "boolean"}, "metrics": {"type": "boolean"}}}}},
+            "outputs": {"type": "object", "properties": {"metrics_cadence": {"type": "integer", "minimum": 1}, "deltas_cadence": {"type": "integer", "minimum": 1}, "snapshots_cadence": {"type": "integer", "minimum": 0}}},
+            "heat_profile": {"type": "object", "required": ["direction", "amplitude", "noise_amp"], "properties": {"direction": {"type": "string", "enum": ["north_hot", "south_hot"]}, "amplitude": {"type": "number"}, "noise_amp": {"type": "number"}}},
+            "water_profile": {"type": "object", "required": ["elevation_scale", "octaves", "ridge_strength", "precipitation_scale", "lake_fill_threshold", "river_percentile", "river_incision", "river_decay_radius"], "properties": {"elevation_scale": {"type": "number"}, "octaves": {"type": "integer"}, "ridge_strength": {"type": "number"}, "precipitation_scale": {"type": "number"}, "lake_fill_threshold": {"type": "number"}, "river_percentile": {"type": "number"}, "river_incision": {"type": "number"}, "river_decay_radius": {"type": "integer"}}},
+            "vegetation_profile": {"type": "object", "required": ["k", "water_half", "heat_optimum", "heat_sigma", "carrying_capacity"], "properties": {"k": {"type": "number"}, "water_half": {"type": "number"}, "heat_optimum": {"type": "number"}, "heat_sigma": {"type": "number"}, "carrying_capacity": {"type": "number"}}}
+        }
+    }

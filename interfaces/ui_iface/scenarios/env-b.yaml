@@ -1,0 +1,98 @@
+dynamics:
+  boundary: wrap
+  passes:
+    advection: true
+    coupling: true
+    decay: true
+    derived: true
+    diffusion: true
+    metrics: true
+    replenishment: true
+fields:
+- bounds:
+  - 0.0
+  - 1.0
+  coeffs:
+    advection:
+      vx: 0.0
+      vy: 0.0
+    decay: 0.0
+    diffusion: 0.18
+    replenish: 0.0
+  derived: false
+  name: temperature
+- bounds:
+  - 0.0
+  - 1.0
+  coeffs:
+    advection:
+      vx: 0.0
+      vy: 0.0
+    decay: 0.0
+    diffusion: 0.12
+    replenish: 0.0
+  derived: false
+  name: hydration
+- bounds:
+  - 0.0
+  - 1.0
+  coeffs:
+    advection:
+      vx: 0.0
+      vy: 0.0
+    decay: 0.0
+    diffusion: 0.05
+    replenish: 0.0
+  derived: false
+  name: vegetation
+- bounds:
+  - 0.0
+  - 1.0
+  coeffs:
+    advection:
+      vx: 0.0
+      vy: 0.0
+    decay: 0.0
+    diffusion: 0.0
+    replenish: 0.0
+  derived: true
+  name: movement_cost
+heat_profile:
+  amplitude: 0.6
+  direction: north_hot
+  noise_amp: 0.05
+outputs:
+  deltas_cadence: 1
+  metrics_cadence: 1
+  snapshots_cadence: 0
+randomness:
+  partitions:
+    kernel_noise: 5
+    precipitation: 2
+    river_routing: 3
+    terrain_elevation: 1
+    vegetation_seed: 4
+  seed: 1337
+vegetation_profile:
+  carrying_capacity: 1.0
+  heat_optimum: 0.65
+  heat_sigma: 0.18
+  k: 0.08
+  water_half: 0.35
+water_profile:
+  elevation_scale: 96
+  lake_fill_threshold: 0.15
+  octaves: 4
+  precipitation_scale: 128
+  ridge_strength: 0.4
+  river_decay_radius: 6
+  river_incision: 0.02
+  river_percentile: 0.92
+world:
+  height: 256
+  ticks_per_day: 1440
+  type: grid
+  width: 256
+  wrap:
+    x: true
+    y: true
