@@ -110,21 +110,36 @@ def lakes(E: NDArray[np.float32], A: NDArray[np.float32], threshold: float) -> t
     return lake_mask, filled
 def hydration_from_hydrology(E: NDArray[np.float32], A: NDArray[np.float32], lake_mask: NDArray[np.bool_], params: dict) -> NDArray[np.float32]:
     h, w = E.shape
-    river_thresh = float(params.get("river_percentile", 0.92))
-    incision = float(params.get("river_incision", 0.02))
-    decay_radius = int(params.get("river_decay_radius", 6))
-    thr = np.percentile(A, 100.0 * river_thresh)
-    rivers = A >= thr
-    E2 = E.copy()
-    E2 = E2 - incision * rivers.astype(np.float32)
-    water_seed = np.zeros((h, w), dtype=np.uint8)
-    water_seed[rivers] = 1
-    water_seed[lake_mask] = 1
-    dist = distance_transform_edt(1 - water_seed)
-    dist = dist / (dist.max() + 1e-8)
-    h2o = np.exp(-dist * (3.0 / max(1, decay_radius)))
-    base = 0.05 + 0.25 * (1.0 - E2)
-    h2o = np.clip(h2o * 0.6 + base, 0.0, 1.0).astype(np.float32)
+    river_thresh = float(params.get("river_percentile", 0.88))
+    lake_thresh = float(params.get("lake_fill_threshold", 0.2))
+    base_moisture = float(params.get("base_moisture", 0.3))
+    river_depth = float(params.get("river_depth", 0.9))
+    lake_depth = float(params.get("lake_depth", 1.0))
+    
+    river_thr = np.percentile(A, 100.0 * river_thresh)
+    rivers = A >= river_thr
+    
+    lake_thr = np.percentile(A, 100.0 * (1.0 - lake_thresh))
+    lakes_major = A >= lake_thr
+    
+    h2o = np.full((h, w), base_moisture, dtype=np.float32)
+    
+    river_dist = distance_transform_edt(~rivers)
+    river_influence = np.exp(-river_dist / 12.0)
+    h2o += river_influence * (river_depth - base_moisture)
+    
+    lake_dist = distance_transform_edt(~lakes_major)
+    lake_influence = np.exp(-lake_dist / 20.0)
+    h2o += lake_influence * (lake_depth - base_moisture)
+    
+    elev_norm = (E - E.min()) / (E.max() - E.min() + 1e-8)
+    lowland_bonus = (1.0 - elev_norm) * 0.15
+    h2o += lowland_bonus
+    
+    h2o = gaussian_filter(h2o, sigma=3.0, mode='wrap')
+    
+    h2o = np.clip(h2o, 0.0, 1.0).astype(np.float32)
+    
     return h2o
 def temperature_meridional(h: int, w: int, params: dict, seed: int) -> NDArray[np.float32]:
     g = _rng(seed)
