@@ -1,7 +1,7 @@
 import numpy as np
 import json
 import os
-from .hydrator import replay_frame
+from .hydrator import hydrate_tick, get_field_index, get_field_names
 from .registry import build_registry
 
 class EnvironmentGrid:
@@ -18,7 +18,7 @@ class EnvironmentGrid:
     
     def load_tick(self, tick: int):
         self.current_tick = tick
-        self.tensor = replay_frame(self.run_dir, tick, self.h, self.w, self.f)
+        self.tensor = hydrate_tick(self.run_dir, tick)
         return self.tensor
     
     def get_field(self, field_name: str) -> np.ndarray:

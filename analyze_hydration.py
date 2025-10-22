@@ -1,7 +1,7 @@
 import sys
 import os
 import numpy as np
-from interfaces.ui_iface.runner.hydrator import replay_frame
+from interfaces.ui_iface.runner.hydrator import hydrate_tick, get_field_index, get_field_names
 
 if len(sys.argv) < 2:
     print("Usage: python analyze_hydration.py <run_dir> [tick]")
@@ -14,31 +14,10 @@ print("=" * 60)
 print("HYDRATION ANALYSIS")
 print("=" * 60)
 
-import json
-with open(os.path.join(run_dir, "scenario.json"), "r") as f:
-    cfg = json.load(f)
-h = cfg["world"]["height"]
-w = cfg["world"]["width"]
-f = len(cfg["fields"])
+tensor = hydrate_tick(run_dir, tick)
+field_names = get_field_names(run_dir)
 
-tensor = replay_frame(run_dir, tick, h, w, f)
-h_idx = None
-w_idx = None
-v_idx = None
-    
-for i, field_obj in enumerate(cfg["fields"]):
-    fname = field_obj["name"]
-    if fname == "hydration":
-        h_idx = i
-    elif fname == "water_body":
-        w_idx = i
-    elif fname == "vegetation":
-        v_idx = i
-
-if h_idx is None:
-    print("ERROR: No hydration field found")
-    sys.exit(1)
-
+h_idx = get_field_index(run_dir, "hydration")
 hydration = tensor[:, :, h_idx]
 
 print(f"Tick: {tick}")
@@ -47,7 +26,8 @@ print(f"Mean: {hydration.mean():.3f}")
 print(f"Std Dev: {hydration.std():.3f}")
 print()
 
-if w_idx is not None:
+try:
+    w_idx = get_field_index(run_dir, "water_body")
     water = tensor[:, :, w_idx]
     land_mask = water < 0.5
     print("Land Coverage:")
@@ -57,6 +37,8 @@ if w_idx is not None:
     else:
         print("  No land cells found")
     print()
+except ValueError:
+    pass
 
 print("Hydration Distribution:")
 bins = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
@@ -67,12 +49,14 @@ for i in range(len(bins)-1):
     print(f"  {bins[i]:.1f}-{bins[i+1]:.1f}: {hist[i]:6d} cells ({pct:5.1f}%)")
 print()
 
-if v_idx is not None:
+try:
+    v_idx = get_field_index(run_dir, "vegetation")
     vegetation = tensor[:, :, v_idx]
     print(f"Vegetation Stats:")
     print(f"  Range: [{vegetation.min():.3f}, {vegetation.max():.3f}]")
     print(f"  Mean: {vegetation.mean():.3f}")
     print()
+except ValueError:
+    pass
 
 print("=" * 60)
-

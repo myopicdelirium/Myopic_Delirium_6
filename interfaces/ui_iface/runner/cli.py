@@ -53,24 +53,19 @@ def inspect(run_dir: str):
     tail = df.sort_values("tick").tail(5)
     typer.echo(tail.to_string(index=False))
 @app.command()
-def visualize(run_dir: str, field: str = "hydration", plot_type: str = "field", save: str = None):
+def visualize(run_dir: str, field: str = "hydration", plot_type: str = "field", tick: int = 0, save: str = None):
     from .viz import plot_field, plot_hydrology, plot_metrics_timeseries, create_animation
-    import json
-    with open(os.path.join(run_dir, "scenario.json"), "r") as f:
-        cfg = json.load(f)
-    from .registry import build_registry
-    reg = build_registry(cfg)
-    h = cfg["world"]["height"]
-    w = cfg["world"]["width"]
-    f = len(reg["names"])
+    from .hydrator import hydrate_tick, get_field_index, get_field_names
+    
     if plot_type == "field":
-        from .hydrator import replay_frame
-        tensor = replay_frame(run_dir, 0, h, w, f)
-        if field in reg["indices"]:
-            field_idx = reg["indices"][field]
-            plot_field(tensor, field_idx, field, save_path=save)
-        else:
-            typer.echo(f"Field {field} not found. Available: {list(reg['indices'].keys())}")
+        try:
+            tensor = hydrate_tick(run_dir, tick)
+            field_idx = get_field_index(run_dir, field)
+            plot_field(tensor, field_idx, field, title=f"{field.title()} at Tick {tick}", save_path=save)
+        except ValueError as e:
+            field_names = get_field_names(run_dir)
+            typer.echo(f"Error: {e}")
+            typer.echo(f"Available fields: {field_names}")
     elif plot_type == "hydrology":
         plot_hydrology(run_dir, save_path=save)
     elif plot_type == "metrics":

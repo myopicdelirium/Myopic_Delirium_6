@@ -1,11 +1,13 @@
 import os
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.animation import FuncAnimation
 import pandas as pd
 from typing import Dict, Any, List, Optional
-from .hydrator import replay_frame
+from .hydrator import hydrate_tick, get_field_index, get_field_names
 from .registry import build_registry
 def create_colormap(field_name: str) -> mcolors.Colormap:
     if field_name == "temperature":
@@ -29,30 +31,31 @@ def plot_field(tensor: np.ndarray, field_idx: int, field_name: str, title: str =
     plt.ylabel("Y")
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.show()
+        plt.close()
+    else:
+        plt.show()
 def plot_hydrology(run_dir: str, save_path: str = None):
-    with open(os.path.join(run_dir, "scenario.json"), "r") as f:
-        import json
-        cfg = json.load(f)
-    reg = build_registry(cfg)
-    h = cfg["world"]["height"]
-    w = cfg["world"]["width"]
-    tensor = replay_frame(run_dir, 0, h, w, len(reg["names"]))
+    tensor = hydrate_tick(run_dir, 0)
+    field_names = get_field_names(run_dir)
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fields = ["temperature", "hydration", "vegetation", "movement_cost"]
     for i, field in enumerate(fields):
-        if field in reg["indices"]:
+        try:
             ax = axes[i//2, i%2]
-            field_idx = reg["indices"][field]
+            field_idx = get_field_index(run_dir, field)
             field_data = tensor[:, :, field_idx]
             cmap = create_colormap(field)
             im = ax.imshow(field_data, cmap=cmap, origin='lower')
             ax.set_title(f"{field.title()}")
             plt.colorbar(im, ax=ax)
+        except ValueError:
+            pass
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.show()
+        plt.close()
+    else:
+        plt.show()
 def plot_metrics_timeseries(run_dir: str, save_path: str = None):
     df_field = pd.read_parquet(os.path.join(run_dir, "metrics", "field_stats.parquet"))
     df_hydro = pd.read_parquet(os.path.join(run_dir, "metrics", "hydrology.parquet"))
@@ -92,32 +95,33 @@ def plot_metrics_timeseries(run_dir: str, save_path: str = None):
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.show()
+        plt.close()
+    else:
+        plt.show()
 def create_animation(run_dir: str, field_name: str, output_path: str = None, max_frames: int = 100):
-    with open(os.path.join(run_dir, "scenario.json"), "r") as f:
-        import json
-        cfg = json.load(f)
-    reg = build_registry(cfg)
-    h = cfg["world"]["height"]
-    w = cfg["world"]["width"]
-    f = len(reg["names"])
-    if field_name not in reg["indices"]:
-        print(f"Field {field_name} not found in registry")
+    try:
+        field_idx = get_field_index(run_dir, field_name)
+    except ValueError:
+        print(f"Field {field_name} not found in run")
         return
-    field_idx = reg["indices"][field_name]
-    df_deltas = pd.read_parquet(os.path.join(run_dir, "grid", "deltas.parquet"))
-    max_tick = min(df_deltas["tick"].max(), max_frames - 1)
+    
+    from .hydrator import get_tick_range
+    min_tick, max_tick = get_tick_range(run_dir)
+    max_tick = min(max_tick, max_frames - 1)
+    
     fig, ax = plt.subplots(figsize=(10, 8))
     cmap = create_colormap(field_name)
-    tensor = replay_frame(run_dir, 0, h, w, f)
+    tensor = hydrate_tick(run_dir, 0)
     im = ax.imshow(tensor[:, :, field_idx], cmap=cmap, origin='lower', vmin=0, vmax=1)
     plt.colorbar(im, label=field_name)
     title = ax.set_title(f"{field_name.title()} - Tick 0")
+    
     def animate(frame):
-        tensor = replay_frame(run_dir, frame, h, w, f)
+        tensor = hydrate_tick(run_dir, frame)
         im.set_array(tensor[:, :, field_idx])
         title.set_text(f"{field_name.title()} - Tick {frame}")
         return im, title
+    
     anim = FuncAnimation(fig, animate, frames=max_tick+1, interval=100, blit=False, repeat=True)
     if output_path:
         anim.save(output_path, writer='pillow', fps=10)
