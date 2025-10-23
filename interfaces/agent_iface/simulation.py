@@ -84,6 +84,7 @@ class AgentSimulation:
     def _get_env_state_for_agent(self, agent: BandedAgent) -> Dict[str, Any]:
         """Get environment state at agent's location including threat."""
         fields = self.env.get_all_fields_at(agent.state.x, agent.state.y)
+        neighborhood = self.env.get_neighborhood(agent.state.x, agent.state.y, radius=2)
         
         local_threat = self.predators.get_threat_at(agent.state.x, agent.state.y)
         neighborhood_threat = self.predators.get_local_threat(agent.state.x, agent.state.y, radius=3)
@@ -94,7 +95,9 @@ class AgentSimulation:
             "vegetation": fields.get("vegetation", 0.0),
             "movement_cost": fields.get("movement_cost", 0.0),
             "threat": local_threat,
-            "neighborhood_threat": neighborhood_threat
+            "neighborhood_threat": neighborhood_threat,
+            "neighborhood_vegetation": neighborhood.get("vegetation", None),
+            "neighborhood_hydration": neighborhood.get("hydration", None)
         }
     
     def run(self, num_ticks: int, verbose: bool = False):

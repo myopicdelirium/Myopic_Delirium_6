@@ -30,6 +30,8 @@ class PhysiologicalBand(Band):
             "local_vegetation": env_state.get("vegetation", 0.0),
             "local_threat": env_state.get("threat", 0.0),
             "neighborhood_threat": env_state.get("neighborhood_threat", np.zeros((5, 5))),
+            "neighborhood_vegetation": env_state.get("neighborhood_vegetation", None),
+            "neighborhood_hydration": env_state.get("neighborhood_hydration", None),
             "energy": agent_state.get("energy", 0.0),
             "position": agent_state.get("position", (0, 0)),
             "tick": agent_state.get("tick", 0)
@@ -81,8 +83,9 @@ class PhysiologicalBand(Band):
             return proposals
         
         energy = perception.get("energy", 0.0)
+        vegetation_value = perception.get("local_vegetation", 0.0)
+        
         if energy < 20.0:
-            vegetation_value = perception.get("local_vegetation", 0.0)
             proposals.append(ActionProposal(
                 action=Action.FORAGE if vegetation_value > 0.1 else self._find_vegetation_direction(perception),
                 urgency=5.0,
@@ -94,8 +97,26 @@ class PhysiologicalBand(Band):
         
         hunger = self.state.internal_state["hunger"]
         if hunger > 0.3:
-            vegetation_value = perception.get("local_vegetation", 0.0)
-            if vegetation_value > 0.2:
+            if vegetation_value > 0.4:
+                # Good vegetation here, forage
+                proposals.append(ActionProposal(
+                    action=Action.FORAGE,
+                    urgency=hunger * 2.0,
+                    expected_value=vegetation_value * 5.0,
+                    band_id=self.band_id,
+                    params={"target": "vegetation"}
+                ))
+            elif vegetation_value < 0.25:
+                # Poor vegetation, move to find better
+                proposals.append(ActionProposal(
+                    action=self._find_vegetation_direction(perception),
+                    urgency=hunger * 1.5,
+                    expected_value=1.0,  # Expected improvement from moving
+                    band_id=self.band_id,
+                    params={"reason": "search_for_food"}
+                ))
+            else:
+                # Moderate vegetation, forage if hungry enough
                 proposals.append(ActionProposal(
                     action=Action.FORAGE,
                     urgency=hunger * 2.0,
@@ -140,8 +161,34 @@ class PhysiologicalBand(Band):
         return min(directions, key=directions.get)
     
     def _find_vegetation_direction(self, perception: Dict[str, Any]) -> Action:
-        """Move toward higher vegetation if available."""
-        return self.rng.choice([Action.MOVE_NORTH, Action.MOVE_SOUTH, Action.MOVE_EAST, Action.MOVE_WEST])
+        """Move toward higher vegetation using simple gradient following."""
+        neighborhood_veg = perception.get("neighborhood_vegetation", None)
+        
+        if neighborhood_veg is None or neighborhood_veg.size == 0:
+            return self.rng.choice([Action.MOVE_NORTH, Action.MOVE_SOUTH, Action.MOVE_EAST, Action.MOVE_WEST])
+        
+        center_y, center_x = neighborhood_veg.shape[0] // 2, neighborhood_veg.shape[1] // 2
+        current_veg = neighborhood_veg[center_y, center_x]
+        
+        directions = {}
+        if center_y > 0:
+            directions[Action.MOVE_NORTH] = neighborhood_veg[center_y - 1, center_x]
+        if center_y < neighborhood_veg.shape[0] - 1:
+            directions[Action.MOVE_SOUTH] = neighborhood_veg[center_y + 1, center_x]
+        if center_x < neighborhood_veg.shape[1] - 1:
+            directions[Action.MOVE_EAST] = neighborhood_veg[center_y, center_x + 1]
+        if center_x > 0:
+            directions[Action.MOVE_WEST] = neighborhood_veg[center_y, center_x - 1]
+        
+        if not directions:
+            return Action.STAY
+        
+        best_direction = max(directions, key=directions.get)
+        
+        if directions[best_direction] > current_veg + 0.05:
+            return best_direction
+        else:
+            return self.rng.choice(list(directions.keys()))
     
     def _find_water_direction(self, perception: Dict[str, Any]) -> Action:
         """Move toward water if available."""
