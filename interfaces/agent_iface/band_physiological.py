@@ -215,7 +215,7 @@ class PhysiologicalBand(Band):
         
         drives = {
             "hunger": hunger * 2.0,      # Base weights
-            "thirst": thirst * 1.5,
+            "thirst": thirst * 1.3,      # Reduced from 1.5 to balance with hunger
             "fatigue": fatigue * 0.8,
             "threat": threat * 10.0      # Threats get highest priority
         }
