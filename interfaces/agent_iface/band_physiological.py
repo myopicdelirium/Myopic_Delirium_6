@@ -158,6 +158,15 @@ class PhysiologicalBand(Band):
             else:
                 self.state.internal_state["failed_searches"] += 1
                 
+        elif action_taken == Action.DRINK:
+            # Apply thirst reduction if water available
+            local_hydration = perception.get("local_hydration", 0.5)
+            if local_hydration > 0.7:
+                thirst_reduction = (local_hydration - 0.7) * 0.5  # Proportional to water quality
+                self.state.internal_state["thirst"] = max(0.0,
+                    self.state.internal_state["thirst"] - thirst_reduction)
+                self.state.internal_state["ticks_since_satisfaction"] = 0
+            
         elif action_taken == Action.REST:
             self.state.internal_state["fatigue"] = max(0.0,
                 self.state.internal_state["fatigue"] - self.REST_FATIGUE_RECOVERY)
@@ -165,7 +174,9 @@ class PhysiologicalBand(Band):
                 self.state.internal_state["hunger"] + self.PASSIVE_HUNGER_RATE * 0.5)
         
         # Increment ticks since last satisfaction
-        if action_taken != Action.FORAGE or perception.get("local_vegetation", 0.0) < 0.2:
+        if action_taken not in [Action.FORAGE, Action.DRINK] or \
+           (action_taken == Action.FORAGE and perception.get("local_vegetation", 0.0) < 0.2) or \
+           (action_taken == Action.DRINK and perception.get("local_hydration", 0.5) < 0.7):
             self.state.internal_state["ticks_since_satisfaction"] += 1
         
         # Frustration accumulation
@@ -195,7 +206,7 @@ class PhysiologicalBand(Band):
             self.state.internal_state["fatigue"] + self.PASSIVE_FATIGUE_RATE)
     
     def _compute_focus(self, perception: Dict[str, Any]) -> tuple[Optional[str], float]:
-        """Determine which drive should dominate attention (with hysteresis)."""
+        """Determine which drive should dominate attention (with adaptive hysteresis)."""
         # Compute all drive urgencies
         hunger = self.state.internal_state["hunger"]
         thirst = self.state.internal_state["thirst"]
@@ -212,9 +223,18 @@ class PhysiologicalBand(Band):
         current_focus = self.state.internal_state.get("current_focus", None)
         focus_strength = self.state.internal_state.get("focus_strength", 0.0)
         
-        # Hysteresis: current focus gets bonus (resist switching)
+        # ADAPTIVE HYSTERESIS: weaker when drives are extreme
+        max_drive = max(drives.values())
+        hysteresis_multiplier = 1.0
+        if max_drive > 2.0:  # Critical level (e.g., hunger=1.0 * 2.0 weight)
+            hysteresis_multiplier = 0.3  # Much easier to switch when desperate
+        elif max_drive > 1.5:
+            hysteresis_multiplier = 0.6  # Moderate resistance
+        
+        # Apply hysteresis bonus (reduced when desperate)
         if current_focus and current_focus in drives:
-            drives[current_focus] += focus_strength * self.FOCUS_HYSTERESIS_BONUS
+            hysteresis_bonus = focus_strength * self.FOCUS_HYSTERESIS_BONUS * hysteresis_multiplier
+            drives[current_focus] += hysteresis_bonus
         
         # Find most urgent drive
         dominant_drive = max(drives, key=drives.get)
@@ -222,15 +242,29 @@ class PhysiologicalBand(Band):
         
         # Decide whether to switch focus
         if dominant_drive == current_focus:
-            # Strengthen commitment to current focus
-            focus_strength = min(1.0, focus_strength + self.FOCUS_BUILDUP_RATE)
+            # Strengthen commitment to current focus (slower buildup when desperate)
+            buildup_rate = self.FOCUS_BUILDUP_RATE * (1.0 if max_drive < 1.5 else 0.5)
+            focus_strength = min(1.0, focus_strength + buildup_rate)
         else:
-            # Only switch if new drive is significantly more urgent
+            # Switch threshold adapts: lower when drives are extreme
+            switch_threshold = self.FOCUS_SWITCH_THRESHOLD * hysteresis_multiplier
+            
             current_urgency = drives.get(current_focus, 0.0) if current_focus else 0.0
-            if dominant_urgency > current_urgency + self.FOCUS_SWITCH_THRESHOLD:
+            
+            # CRITICAL OVERRIDE: If any drive is critical (>0.9), force switch if it's higher
+            critical_drives = {k: v for k, v in 
+                             [("hunger", hunger), ("thirst", thirst), ("fatigue", fatigue)]
+                             if v > 0.9}
+            
+            if critical_drives and dominant_drive in critical_drives:
+                # Force switch to critical need regardless of hysteresis
                 current_focus = dominant_drive
-                focus_strength = 0.3  # Start with moderate commitment
-            # else: maintain current focus despite new urgency
+                focus_strength = 0.2  # Low initial commitment (ready to switch again)
+            elif dominant_urgency > current_urgency + switch_threshold:
+                # Normal switch
+                current_focus = dominant_drive
+                focus_strength = 0.3
+            # else: maintain current focus
         
         self.state.internal_state["current_focus"] = current_focus
         self.state.internal_state["focus_strength"] = focus_strength

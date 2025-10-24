@@ -1,0 +1,47 @@
+# Trade-off environment: Food and water are spatially separated
+# Forces agents to choose between satisfying hunger or thirst
+
+world:
+  width: 256
+  height: 256
+  seed: 12345
+
+fields:
+  # Temperature: mild everywhere (not a factor)
+  - name: temperature
+    initial:
+      type: constant
+      value: 0.5
+    dynamics: []
+
+  # Hydration: HIGH in top half, LOW in bottom half
+  - name: hydration
+    initial:
+      type: gradient
+      start_value: 1.0
+      end_value: 0.2
+      axis: y  # vertical gradient
+      noise_scale: 0.15
+    dynamics:
+      - type: smooth
+        kernel_size: 5
+
+  # Vegetation: HIGH in bottom half, LOW in top half (OPPOSITE of water!)
+  - name: vegetation
+    initial:
+      type: gradient
+      start_value: 0.1
+      end_value: 0.8
+      axis: y  # vertical gradient (opposite direction)
+      noise_scale: 0.2
+    dynamics:
+      - type: smooth
+        kernel_size: 7
+
+  # Movement cost: not used
+  - name: movement_cost
+    initial:
+      type: constant
+      value: 0.0
+    dynamics: []
+
